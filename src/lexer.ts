@@ -91,9 +91,11 @@ type LexNumberLoop<T extends string> =
   T extends `${infer A extends Digit}${infer REST extends string}`
     ? `${A}${LexWordLoop<REST>}`
     : '';
+
+type ParseNumber<T> = T extends `${infer R extends number}` ? R : never;
 type TryLexNumber<T extends string> = LexNumberLoop<T> extends ''
   ? never
-  : {type: 'number'; val: LexNumberLoop<T>};
+  : {type: 'number'; val: ParseNumber<LexNumberLoop<T>>};
 
 type LexOperator<T extends string> =
   T extends `${infer A extends Operator}${string}` ? A : '';
