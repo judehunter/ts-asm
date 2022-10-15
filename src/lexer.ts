@@ -87,11 +87,13 @@ type TryLexKeywordOrIdentifier<T extends string> =
     ? {type: R; val: R}
     : TryLexWord<T>;
 
-// type LexNumber<T extends string> =
-//   T extends `${infer A extends number}${string}` ? A : '';
-// type TryLexNumber<T extends string> = LexNumber<T> extends ''
-//   ? never
-//   : {type: 'number'; val: LexNumber<T>};
+type LexNumberLoop<T extends string> =
+  T extends `${infer A extends Digit}${infer REST extends string}`
+    ? `${A}${LexWordLoop<REST>}`
+    : '';
+type TryLexNumber<T extends string> = LexNumberLoop<T> extends ''
+  ? never
+  : {type: 'number'; val: LexNumberLoop<T>};
 
 type LexOperator<T extends string> =
   T extends `${infer A extends Operator}${string}` ? A : '';
@@ -118,18 +120,17 @@ type LexCurrent<T extends string> =
         TryLexOperator<T>,
         ...(T extends `${R}${infer REST}` ? LexCurrent<REST> : never),
       ]
-    : /*T extends `${infer R extends TryLexNumber<T>['val']}${string}`
+    : T extends `${infer R extends TryLexNumber<T>['val']}${string}`
     ? [
         TryLexNumber<T>,
         ...(T extends `${R}${infer REST}` ? LexCurrent<REST> : never),
       ]
-    :*/ T extends `${infer R extends LexWhitespace<T>}${string}`
+    : T extends `${infer R extends LexWhitespace<T>}${string}`
     ? [...(T extends `${R}${infer REST}` ? LexCurrent<REST> : never)]
     : [];
 
-
 type LexLine<T extends string> = LexCurrent<T>;
-type Lex<T extends string> = SplitLines<
+export type Lex<T extends string> = SplitLines<
   Trim<T>
 > extends infer R extends string[]
   ? {[K in keyof R]: LexLine<R[K]>}
