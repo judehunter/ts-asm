@@ -7,11 +7,9 @@
     "noImplicitAny": false,
     "esModuleInterop": true,
     "allowJs": true,
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "strictPropertyInitialization": false,
     "skipLibCheck": true,
-    "downlevelIteration": true
+    "downlevelIteration": true,
+    "moduleDetection": "force"
   },
   "include": ["src"]
 }
