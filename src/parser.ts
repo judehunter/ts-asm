@@ -45,17 +45,21 @@ type MultiSub<N extends number, D extends number, Q extends number> = LT<
 type Multiply<A extends number, B extends number> = MultiAdd<A, 0, B>;
 type Divide<A extends number, B extends number> = MultiSub<A, B, 0>;
 
-type Atom<INPUT extends Token[], CUR extends number> = [
-  Add<CUR, 1>,
-  INPUT[CUR],
-];
+type Primary<
+  INPUT extends Token[],
+  CUR extends number,
+> = INPUT[CUR] extends infer R extends {
+  type: 'number' | 'identifier';
+}
+  ? [Add<CUR, 1>, R]
+  : never;
 
 type MulDivLoop<
   INPUT extends Token[],
   CUR extends number,
   EXPR extends any,
 > = INPUT[CUR]['type'] extends '*' | '/'
-  ? Atom<INPUT, Add<CUR, 1>> extends infer B extends [number, any]
+  ? Primary<INPUT, Add<CUR, 1>> extends infer B extends [number, any]
     ? MulDivLoop<
         INPUT,
         B[0],
@@ -69,7 +73,7 @@ type MulDivLoop<
     : never
   : [CUR, EXPR];
 
-type MulDiv<INPUT extends Token[], CUR extends number> = Atom<
+type MulDiv<INPUT extends Token[], CUR extends number> = Primary<
   INPUT,
   CUR
 > extends infer A extends [number, any]
@@ -106,24 +110,65 @@ type Expr<INPUT extends Token[], CUR extends number> = AddSub<
   INPUT,
   CUR
 > extends infer R extends [number, any] // had to add this for optimalization for some reason
-  ? R[1]
+  ? R
   : never;
 
-type ExprStmt<INPUT extends Token[]> = Expr<INPUT, 0>;
+type ExprStmt<INPUT extends Token[], CUR extends number> = Expr<
+  INPUT,
+  CUR
+> extends infer R extends [number, any]
+  ? INPUT[R[0]] extends {type: 'newline'}
+    ? [Add<R[0], 1>, {type: 'exprstmt'; expr: R[1]}]
+    : never
+  : never;
 
-type AssignmentStmt<INPUT extends Token[]> = {
-  type: 'assignment';
-  name: INPUT[0]['val'];
-  expr: Expr<INPUT, 2>;
-};
+type AssignmentStmt<INPUT extends Token[], CUR extends number> = Expr<
+  INPUT,
+  Add<CUR, 2>
+> extends infer R extends [number, any]
+  ? INPUT[R[0]] extends {type: 'newline'}
+    ? [
+        Add<R[0], 1>,
+        {
+          type: 'assignment';
+          name: INPUT[CUR]['val'];
+          expr: R[1];
+        },
+      ]
+    : never
+  : never;
 
-type Stmt<INPUT extends Token[]> = INPUT[1] extends {
+type Stmt<INPUT extends Token[], CUR extends number> = INPUT[Add<
+  CUR,
+  1
+>] extends {
   type: '=';
 }
-  ? INPUT[0] extends {type: 'identifier'}
-    ? AssignmentStmt<INPUT>
+  ? INPUT[CUR] extends {type: 'identifier'}
+    ? AssignmentStmt<INPUT, CUR>
     : never
-  : ExprStmt<INPUT>;
+  : ExprStmt<INPUT, CUR>;
+
+type Parse<
+  INPUT extends Token[],
+  CUR extends number,
+> = INPUT[CUR] extends undefined
+  ? []
+  : Stmt<INPUT, CUR> extends infer R extends [number, any]
+  ? [R[1], ...Parse<INPUT, R[0]>]
+  : never;
+
+// type Lex2<T extends string> = Lex<T>
+
+// type A = Parse<
+//   [
+//     ...Lex<`
+//       a = 5
+//     `>,
+//     {type: 'newline'; val: '\n'},
+//   ],
+//   0
+// >;
 
 type EvalExpr<CTX extends Record<string, any>, EXPR_NODE> = EXPR_NODE extends {
   type: 'number';
@@ -168,13 +213,13 @@ type EvalLoop<
     : never
   : CTX;
 
-type X = Stmt<
-  Lex<`
-    x = 5
-  `>[0]
->;
+// type X = Stmt<
+//   Lex<`
+//     x = 5
+//   `>
+// >;
 
-type Parse<LEXED extends Token[][]> = {[K in keyof LEXED]: Stmt<LEXED[K]>};
+// type Parse<LEXED extends Token[]> = Stmt<LEXED>;
 
 type ABC = Signature<
   EvalLoop<
@@ -182,7 +227,10 @@ type ABC = Signature<
       Lex<`
         y = 4
         x = y + 2
-      `>
+        y = y + x
+        y = y + 1
+      `>,
+      0
     >
   >
 >;

@@ -1,9 +1,9 @@
-type WhiteSpace = ' ' | '\n';
+type SpaceOrNewLine = ' ' | '\n';
 
 type TrimLeft<T extends string> =
-  T extends `${WhiteSpace}${infer R extends string}` ? TrimLeft<R> : T;
+  T extends `${SpaceOrNewLine}${infer R extends string}` ? TrimLeft<R> : T;
 type TrimRight<T extends string> =
-  T extends `${infer R extends string}${WhiteSpace}` ? TrimRight<R> : T;
+  T extends `${infer R extends string}${SpaceOrNewLine}` ? TrimRight<R> : T;
 type Trim<T extends string> = TrimRight<TrimLeft<T>>;
 
 type Split<
@@ -106,10 +106,23 @@ type TryLexOperator<T extends string> = LexOperator<T> extends ''
       val: LexOperator<T>;
     };
 
-type LexWhitespace<T extends string> =
+type LexSpace<T extends string> =
   T extends `${infer A extends ' '}${infer REST extends string}`
-    ? `${A}${LexWhitespace<REST>}`
+    ? `${A}${LexSpace<REST>}`
     : '';
+
+type TryLexSpace<T extends string> = LexSpace<T> extends ''
+  ? never
+  : LexSpace<T>;
+
+type LexNewLine<T extends string> =
+  T extends `${infer A extends '\n'}${infer REST extends string}`
+    ? `${A}${LexNewLine<REST>}`
+    : '';
+
+type TryLexNewLine<T extends string> = LexNewLine<T> extends ''
+  ? never
+  : LexNewLine<T>;
 
 type LexCurrent<T extends string> =
   T extends `${infer R extends TryLexKeywordOrIdentifier<T>['val']}${string}`
@@ -127,15 +140,20 @@ type LexCurrent<T extends string> =
         TryLexNumber<T>,
         ...(T extends `${R}${infer REST}` ? LexCurrent<REST> : never),
       ]
-    : T extends `${infer R extends LexWhitespace<T>}${string}`
+    : T extends `${infer R extends TryLexSpace<T>}${string}`
     ? [...(T extends `${R}${infer REST}` ? LexCurrent<REST> : never)]
+    : T extends `${infer R extends TryLexNewLine<T>}${string}`
+    ? [
+        {type: 'newline'; val: '\n'},
+        ...(T extends `${R}${infer REST}` ? LexCurrent<REST> : never),
+      ]
     : [];
 
-type LexLine<T extends string> = LexCurrent<T>;
-export type Lex<T extends string> = SplitLines<
-  Trim<T>
-> extends infer R extends string[]
-  ? {[K in keyof R]: LexLine<R[K]>}
-  : never;
+// type LexLine<T extends string> = LexCurrent<T>;
+
+export type Lex<T extends string> = [
+  ...(Trim<T> extends infer R extends string ? LexCurrent<R> : never),
+  {type: 'newline'; val: '\n'},
+];
 
 export type Token = {type: any; val: any};
