@@ -2,7 +2,7 @@
 
 import {Signature} from '../utils';
 import {Immediate, Register} from './ast';
-import {ParseProgram} from './parser';
+import {ParseProgram, ResolveLabels} from './parser';
 
 type Adder<A, B, C> = [A, B, C] extends ['0', '0', '0']
   ? {result: '0'; carry: '0'}
@@ -80,8 +80,11 @@ type EvalAddIInstr<T, Ctx extends Context> = T extends {type: 'AddI'}
     ? {
         memory: Ctx['memory'];
         registers: Overwrite<
-          Ctx['registers'],
-          Record<Rd, EvalAdd<Ctx['registers'][Rn], imm>['result']>
+          Overwrite<
+            Ctx['registers'],
+            Record<Rd, EvalAdd<Ctx['registers'][Rn], imm>['result']>
+          >,
+          {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
         >;
       }
     : never
@@ -92,19 +95,57 @@ type EvalMovIInstr<T, Ctx extends Context> = T extends {type: 'MovI'}
     ? {
         memory: Ctx['memory'];
         registers: Overwrite<
-          Overwrite<Ctx['registers'], Record<Rd, imm>>,
-          {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+          Overwrite<
+            Ctx['registers'],
+            {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+          >,
+          Record<Rd, imm>
         >;
       }
     : never
   : never;
 
-type Tesssst = {};
+type EvalMovRInstr<T, Ctx extends Context> = T extends {type: 'MovR'}
+  ? T extends {Rd: infer Rd extends Register; Rm: infer Rm extends Register}
+    ? {
+        memory: Ctx['memory'];
+        registers: Overwrite<
+          Overwrite<
+            Ctx['registers'],
+            {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+          >,
+          Record<Rd, Ctx['registers'][Rm]>
+        >;
+      }
+    : never
+  : never;
+
+type EvalBranchInstr<T, Ctx extends Context> = T extends {type: 'Branch'}
+  ? T extends {address: infer address extends string}
+    ? {
+        memory: Ctx['memory'];
+        registers: Overwrite<Ctx['registers'], {pc: address}>;
+      }
+    : never
+  : never;
+
+type EvalLabelInstr<T, Ctx extends Context> = T extends {type: 'Label'}
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Ctx['registers'],
+        {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+      >;
+    }
+  : never;
 
 type EvalInstr<T, Ctx extends Context> =
-  // | EvalAddIInstr<T, Ctx>
+  | EvalAddIInstr<T, Ctx>
   // | EvalAddRInstr<T, Ctx>
-  EvalMovIInstr<T, Ctx>;
+  | EvalMovIInstr<T, Ctx>
+  | EvalMovRInstr<T, Ctx>
+  | EvalBranchInstr<T, Ctx>
+  | EvalLabelInstr<T, Ctx>;
 
 type Context = {
   registers: {
@@ -123,7 +164,7 @@ type Context = {
   memory: string[];
 };
 
-type PickPC<T, PC> = T extends PC ? T : never;
+// type PickPC<T, PC> = T extends PC ? T : never;
 
 type Find<Instrs, PC> = {
   [K in keyof Instrs]: Instrs[K] extends {idx: PC} ? Instrs[K] : never;
@@ -159,12 +200,21 @@ type Eval<
   ? Ctx
   : Eval<Instrs, EvalInstr<CleanFind<Instrs, Ctx['registers']['pc']>, Ctx>>;
 
-type XXX = Signature<
-  ParseProgram<`
-    MOV r1, #00000001
-    MOV r1, #00000001
-  `>
+type XXX = Eval<
+  ResolveLabels<
+    ParseProgram<`
+      B test
+      test:
+      ADD r0, r0, #00000001
+      exit:
+    `>
+  >
 >;
+
+type r0 = XXX['registers']['r0'];
+//   ^?
+type r1 = XXX['registers']['r1'];
+//   ^?
 
 // type Test = Signature<Eval<
 //   [
