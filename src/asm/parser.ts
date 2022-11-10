@@ -1,4 +1,4 @@
-import {AddInstr, Immediate, Register} from './ast';
+import {Immediate, Register} from './ast';
 import {EvalAdd} from './eval';
 
 type TrimLeftSpace<T> = T extends ` ${infer R}` ? TrimLeftSpace<R> : T;
@@ -60,6 +60,19 @@ type ParseBranchIfZero<T> =
     ? {type: 'BranchIfZero'; Rn: Rn; label: label}
     : never;
 
+type ParseBranchIfNotZero<T> =
+  T extends `CBNZ ${infer Rn extends Register}, ${infer label extends string}`
+    ? {type: 'BranchIfNotZero'; Rn: Rn; label: label}
+    : never;
+
+type ParseBranchLink<T> = T extends `BL ${infer label extends string}`
+  ? {type: 'BranchLink'; label: label}
+  : never;
+
+type ParseBranchR<T> = T extends `BR ${infer Rm extends Register}`
+  ? {type: 'MovR'; Rd: 'pc'; Rm: Rm}
+  : never;
+
 type ParseInstr<T> =
   | ParseAddIInstr<T>
   | ParseAddRInstr<T>
@@ -69,7 +82,10 @@ type ParseInstr<T> =
   | ParseMovRInstr<T>
   | ParseLabel<T>
   | ParseBranch<T>
-  | ParseBranchIfZero<T>;
+  | ParseBranchIfZero<T>
+  | ParseBranchLink<T>
+  | ParseBranchR<T>
+  | ParseBranchIfNotZero<T>;
 
 type ParseLine<T> = ParseInstr<TrimSpace<T>>;
 
@@ -115,11 +131,26 @@ export type ResolveLabels<Instrs> = {
         imm: FindLabel<Instrs, Instrs[K]['label']>['idx'];
         idx: Instrs[K]['idx'];
       }
-    : Instrs[K] extends {type: 'BranchIfZero'; label: string; idx: string; Rn: Register}
+    : Instrs[K] extends {
+        type: 'BranchLink';
+        label: string;
+        idx: string;
+      }
     ? {
-        type: 'BranchIfZero';
+        type: 'BranchLink';
         address: FindLabel<Instrs, Instrs[K]['label']>['idx'];
-        Rn: Instrs[K]['Rn']
+        idx: Instrs[K]['idx'];
+      }
+    : Instrs[K] extends {
+        type: infer type extends 'BranchIfZero' | 'BranchIfNotZero';
+        label: string;
+        idx: string;
+        Rn: Register;
+      }
+    ? {
+        type: type;
+        address: FindLabel<Instrs, Instrs[K]['label']>['idx'];
+        Rn: Instrs[K]['Rn'];
         idx: Instrs[K]['idx'];
       }
     : Instrs[K];
@@ -127,8 +158,14 @@ export type ResolveLabels<Instrs> = {
 
 type Test = ResolveLabels<
   ParseProgram<`
-    ADD r0, r0, #0
-    test:
-    CBZ r0, test
+  MOV r0, #00001101
+  BL negate
+  B exit
+  negate:
+    MOV r1, r0
+    SUB r0, r0, r1
+    SUB r0, r0, r1
+    MOV pc, lr
+  exit:
   `>
 >;
