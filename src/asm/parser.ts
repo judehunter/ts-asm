@@ -55,6 +55,11 @@ type ParseBranch<T> = T extends `B ${infer label extends string}`
   ? {type: 'Branch'; label: label}
   : never;
 
+type ParseBranchIfZero<T> =
+  T extends `CBZ ${infer Rn extends Register}, ${infer label extends string}`
+    ? {type: 'BranchIfZero'; Rn: Rn; label: label}
+    : never;
+
 type ParseInstr<T> =
   | ParseAddIInstr<T>
   | ParseAddRInstr<T>
@@ -63,7 +68,8 @@ type ParseInstr<T> =
   | ParseMovIInstr<T>
   | ParseMovRInstr<T>
   | ParseLabel<T>
-  | ParseBranch<T>;
+  | ParseBranch<T>
+  | ParseBranchIfZero<T>;
 
 type ParseLine<T> = ParseInstr<TrimSpace<T>>;
 
@@ -82,7 +88,11 @@ export type ParseProgram<T> = SplitLines<Trim<T>> extends infer R extends any[]
   : never;
 
 type Find<Instrs, Name> = {
-  [K in keyof Instrs]: Instrs[K] extends {type: 'Label'; name: Name, idx: string}
+  [K in keyof Instrs]: Instrs[K] extends {
+    type: 'Label';
+    name: Name;
+    idx: string;
+  }
     ? Instrs[K]
     : never;
 };
@@ -94,13 +104,31 @@ type Clean<Arr> = {
 type FindLabel<Instrs, PC> = Clean<Find<Instrs, PC>>;
 
 export type ResolveLabels<Instrs> = {
-  [K in keyof Instrs]: Instrs[K] extends {type: 'Branch'; label: string, idx: string}
-    ? {type: 'MovI'; Rd: 'pc'; imm: FindLabel<Instrs, Instrs[K]['label']>['idx'], idx: Instrs[K]['idx']}
+  [K in keyof Instrs]: Instrs[K] extends {
+    type: 'Branch';
+    label: string;
+    idx: string;
+  }
+    ? {
+        type: 'MovI';
+        Rd: 'pc';
+        imm: FindLabel<Instrs, Instrs[K]['label']>['idx'];
+        idx: Instrs[K]['idx'];
+      }
+    : Instrs[K] extends {type: 'BranchIfZero'; label: string; idx: string; Rn: Register}
+    ? {
+        type: 'BranchIfZero';
+        address: FindLabel<Instrs, Instrs[K]['label']>['idx'];
+        Rn: Instrs[K]['Rn']
+        idx: Instrs[K]['idx'];
+      }
     : Instrs[K];
 };
 
-type Test = ResolveLabels<ParseProgram<`
-  ADD r0, r0, #0
-  test:
-  B test
-`>>;
+type Test = ResolveLabels<
+  ParseProgram<`
+    ADD r0, r0, #0
+    test:
+    CBZ r0, test
+  `>
+>;
