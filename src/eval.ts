@@ -8,9 +8,15 @@ import {
   BranchLinkInstr,
   Immediate,
   LabelInstr,
+  LdrIInstr,
+  LdrRInstr,
   MovIInstr,
   MovRInstr,
+  PopInstr,
+  PushInstr,
   Register,
+  StrIInstr,
+  StrRInstr,
   SubIInstr,
   SubRInstr,
 } from './ast';
@@ -217,6 +223,129 @@ type EvalLabelInstr<T, Ctx extends Context> = T extends LabelInstr<string>
     }
   : never;
 
+type EvalPushInstr<T, Ctx extends Context> = T extends PushInstr<infer Rm>
+  ? {
+      memory: Overwrite<
+        Ctx['memory'],
+        Record<Ctx['registers']['sp'], Ctx['registers'][Rm]>
+      >;
+      registers: Overwrite<
+        Ctx['registers'],
+        {
+          pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result'];
+          sp: EvalSub<Ctx['registers']['sp'], '00000001'>['result'];
+        }
+      >;
+    }
+  : never;
+
+type EvalPopInstr<T, Ctx extends Context> = T extends PopInstr<infer Rm>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
+          Ctx['registers'],
+          {
+            pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result'];
+            sp: EvalAdd<Ctx['registers']['sp'], '00000001'>['result'];
+          }
+        >,
+        Record<
+          Rm,
+          Ctx['memory'][EvalAdd<Ctx['registers']['sp'], '00000001'>['result']]
+        >
+      >;
+    }
+  : never;
+
+type EvalStrIInstr<T, Ctx extends Context> = T extends StrIInstr<
+  infer Rt,
+  infer Rn,
+  infer imm
+>
+  ? {
+      memory: Overwrite<
+        Ctx['memory'],
+        Record<
+          EvalAdd<Ctx['registers'][Rn], imm>['result'],
+          Ctx['registers'][Rt]
+        >
+      >;
+      registers: Overwrite<
+        Ctx['registers'],
+        {
+          pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result'];
+        }
+      >;
+    }
+  : never;
+
+type EvalStrRInstr<T, Ctx extends Context> = T extends StrRInstr<
+  infer Rt,
+  infer Rn,
+  infer Rm
+>
+  ? {
+      memory: Overwrite<
+        Ctx['memory'],
+        Record<
+          EvalAdd<Ctx['registers'][Rn], Ctx['registers'][Rm]>['result'],
+          Ctx['registers'][Rt]
+        >
+      >;
+      registers: Overwrite<
+        Ctx['registers'],
+        {
+          pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result'];
+        }
+      >;
+    }
+  : never;
+
+type EvalLdrIInstr<T, Ctx extends Context> = T extends LdrIInstr<
+  infer Rt,
+  infer Rn,
+  infer imm
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
+          Ctx['registers'],
+          {
+            pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result'];
+          }
+        >,
+        Record<Rt, Ctx['memory'][EvalAdd<Ctx['registers'][Rn], imm>['result']]>
+      >;
+    }
+  : never;
+
+type EvalLdrRInstr<T, Ctx extends Context> = T extends LdrRInstr<
+  infer Rt,
+  infer Rn,
+  infer Rm
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
+          Ctx['registers'],
+          {
+            pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result'];
+          }
+        >,
+        Record<
+          Rt,
+          Ctx['memory'][EvalAdd<
+            Ctx['registers'][Rn],
+            Ctx['registers'][Rm]
+          >['result']]
+        >
+      >;
+    }
+  : never;
+
 type EvalInstr<T, Ctx extends Context> =
   | EvalAddIInstr<T, Ctx>
   | EvalAddRInstr<T, Ctx>
@@ -226,7 +355,13 @@ type EvalInstr<T, Ctx extends Context> =
   | EvalBranchIfInstr<T, Ctx>
   | EvalSubIInstr<T, Ctx>
   | EvalSubRInstr<T, Ctx>
-  | EvalBranchLinkInstr<T, Ctx>;
+  | EvalBranchLinkInstr<T, Ctx>
+  | EvalPushInstr<T, Ctx>
+  | EvalPopInstr<T, Ctx>
+  | EvalStrIInstr<T, Ctx>
+  | EvalStrRInstr<T, Ctx>
+  | EvalLdrIInstr<T, Ctx>
+  | EvalLdrRInstr<T, Ctx>;
 
 type Context = {
   registers: {
@@ -242,7 +377,7 @@ type Context = {
     lr: string;
     pc: string;
   };
-  memory: string[];
+  memory: Record<string, string>;
 };
 
 // type PickPC<T, PC> = T extends PC ? T : never;
@@ -271,11 +406,11 @@ type Eval<
       r5: '00000000';
       r6: '00000000';
       r7: '00000000';
-      sp: '00000000';
+      sp: '11111111';
       lr: '00000000';
       pc: '00000000';
     };
-    memory: [];
+    memory: {};
   },
 > = CleanFind<Instrs, Ctx['registers']['pc']> extends never
   ? Ctx
@@ -324,17 +459,30 @@ type Eval<
 //   >
 // >;
 
+// type Program = Eval<
+//   ResolveLabels<
+//     ParseProgram<`
+//       MOV r0, #00000110
+//       MOV r1, #11000110
+//       mul:
+//         CBZ r1, exit
+//         ADD r2, r2, r0
+//         SUB r1, r1, #00000001
+//         B mul
+//       exit:
+//     `>
+//   >
+// >;
+
 type Program = Eval<
   ResolveLabels<
     ParseProgram<`
-      MOV r0, #00000110
-      MOV r1, #11000110
-      mul:
-        CBZ r1, exit
-        ADD r2, r2, r0
-        SUB r1, r1, #00000001
-        B mul
-      exit:
+      MOV r0, #00000001
+      MOV r3, #00001111
+      STR r0, [r3]
+      STR r0, [r3, r0]
+      LDR r1, [r3]
+      LDR r2, [r3, r0]
     `>
   >
 >;
@@ -344,6 +492,8 @@ type r0 = Program['registers']['r0'];
 type r1 = Program['registers']['r1'];
 //   ^?
 type r2 = Program['registers']['r2'];
+//   ^?
+type mem = Signature<Program['memory']>;
 //   ^?
 
 // type Test = Signature<Eval<

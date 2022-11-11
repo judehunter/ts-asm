@@ -117,6 +117,44 @@ export type BranchLinkInstr<address extends string> = {
   address: address
 };
 
+export type PushInstr<Rm extends Register> = {
+  type: 'Push';
+  Rm: Rm;
+}
+
+export type PopInstr<Rm extends Register> = {
+  type: 'Pop';
+  Rm: Rm;
+}
+
+export type StrIInstr<Rt extends Register, Rn extends Register, imm extends Immediate> = {
+  type: 'StrI';
+  Rt: Rt;
+  Rn: Rn;
+  imm: imm;
+}
+
+export type StrRInstr<Rt extends Register, Rn extends Register, Rm extends Register> = {
+  type: 'StrR';
+  Rt: Rt;
+  Rn: Rn;
+  Rm: Rm;
+}
+
+export type LdrIInstr<Rt extends Register, Rn extends Register, imm extends Immediate> = {
+  type: 'LdrI';
+  Rt: Rt;
+  Rn: Rn;
+  imm: imm;
+}
+
+export type LdrRInstr<Rt extends Register, Rn extends Register, Rm extends Register> = {
+  type: 'LdrR';
+  Rt: Rt;
+  Rn: Rn;
+  Rm: Rm;
+}
+
 export type Indexed<T, idx extends string> = T & {idx: idx};
 
 // export type Resolved<T, address extends string> = T &

@@ -16,8 +16,15 @@ import {
   _BranchIf,
   BranchLinkInstr,
   BranchIf,
+  PushInstr,
+  PopInstr,
+  StrIInstr,
+  StrRInstr,
+  LdrIInstr,
+  LdrRInstr,
 } from './ast';
 import {EvalAdd} from './eval';
+import {Signature} from './utils';
 
 type TrimLeftSpace<T> = T extends ` ${infer R}` ? TrimLeftSpace<R> : T;
 type TrimRightSpace<T> = T extends `${infer R} ` ? TrimRightSpace<R> : T;
@@ -89,6 +96,36 @@ type ParseBranchR<T> = T extends `BR ${infer Rm extends Register}`
   ? MovRInstr<'pc', Rm>
   : never;
 
+type ParsePush<T> = T extends `PUSH {${infer Rm extends Register}}`
+  ? PushInstr<Rm>
+  : never;
+
+type ParsePop<T> = T extends `POP {${infer Rm extends Register}}`
+  ? PopInstr<Rm>
+  : never;
+
+type ParseStrInstr<T> =
+  T extends `STR ${infer Rt extends Register}, [${infer address extends string}]`
+    ? address extends `${infer Rn extends Register}`
+      ? StrIInstr<Rt, Rn, '00000000'>
+      : address extends `${infer Rn extends Register}, #${infer imm extends Immediate}`
+      ? StrIInstr<Rt, Rn, imm>
+      : address extends `${infer Rn extends Register}, ${infer Rm extends Register}`
+      ? StrRInstr<Rt, Rn, Rm>
+      : never
+    : never;
+
+type ParseLdrInstr<T> =
+  T extends `LDR ${infer Rt extends Register}, [${infer address extends string}]`
+    ? address extends `${infer Rn extends Register}`
+      ? LdrIInstr<Rt, Rn, '00000000'>
+      : address extends `${infer Rn extends Register}, #${infer imm extends Immediate}`
+      ? LdrIInstr<Rt, Rn, imm>
+      : address extends `${infer Rn extends Register}, ${infer Rm extends Register}`
+      ? LdrRInstr<Rt, Rn, Rm>
+      : never
+    : never;
+
 type ParseInstr<T> =
   | ParseAddIInstr<T>
   | ParseAddRInstr<T>
@@ -101,7 +138,11 @@ type ParseInstr<T> =
   | ParseBranchIfZero<T>
   | ParseBranchLink<T>
   | ParseBranchR<T>
-  | ParseBranchIfNotZero<T>;
+  | ParseBranchIfNotZero<T>
+  | ParsePush<T>
+  | ParsePop<T>
+  | ParseStrInstr<T>
+  | ParseLdrInstr<T>;
 
 type ParseLine<T> = ParseInstr<TrimSpace<T>>;
 
@@ -158,10 +199,8 @@ export type ResolveLabels<Instrs> = {
       Instrs[K];
 };
 
-type Test = ResolveLabels<
+type Test = Signature<
   ParseProgram<`
-    CBNZ r1, x
-    x:
-    BR x
+    MOV r0, #00000110
   `>
 >;
