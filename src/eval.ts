@@ -1,7 +1,19 @@
 // type X<T extends string> = T['length'];
 
-import {Signature} from '../utils';
-import {Immediate, Register} from './ast';
+import {Signature} from './utils';
+import {
+  AddIInstr,
+  AddRInstr,
+  BranchIf,
+  BranchLinkInstr,
+  Immediate,
+  LabelInstr,
+  MovIInstr,
+  MovRInstr,
+  Register,
+  SubIInstr,
+  SubRInstr,
+} from './ast';
 import {ParseProgram, ResolveLabels} from './parser';
 
 type Adder<A, B, C> = [A, B, C] extends ['0', '0', '0']
@@ -52,207 +64,150 @@ type EvalSub<A, B> = EvalAdd<A, TwosComplement<B>>;
 
 type Overwrite<A, B> = Omit<A, keyof B> & B;
 
-type EvalAddRInstr<T, Ctx extends Context> = T extends {type: 'AddR'}
-  ? T extends {
-      Rd: infer Rd extends Register;
-      Rn: infer Rn extends Register;
-      Rm: infer Rm extends Register;
-    }
-    ? {
-        memory: Ctx['memory'];
-        registers: Overwrite<
-          Overwrite<
-            Ctx['registers'],
-            Record<
-              Rd,
-              EvalAdd<Ctx['registers'][Rn], Ctx['registers'][Rm]>['result']
-            >
-          >,
-          {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
-        >;
-      }
-    : never
-  : never;
-
-type EvalAddIInstr<T, Ctx extends Context> = T extends {type: 'AddI'}
-  ? T extends {
-      Rd: infer Rd extends Register;
-      Rn: infer Rn extends Register;
-      imm: infer imm extends Immediate;
-    }
-    ? {
-        memory: Ctx['memory'];
-        registers: Overwrite<
-          Overwrite<
-            Ctx['registers'],
-            Record<Rd, EvalAdd<Ctx['registers'][Rn], imm>['result']>
-          >,
-          {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
-        >;
-      }
-    : never
-  : never;
-
-type EvalSubIInstr<T, Ctx extends Context> = T extends {type: 'SubI'}
-  ? T extends {
-      Rd: infer Rd extends Register;
-      Rn: infer Rn extends Register;
-      imm: infer imm extends Immediate;
-    }
-    ? {
-        memory: Ctx['memory'];
-        registers: Overwrite<
-          Overwrite<
-            Ctx['registers'],
-            Record<Rd, EvalSub<Ctx['registers'][Rn], imm>['result']>
-          >,
-          {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
-        >;
-      }
-    : never
-  : never;
-
-type EvalSubRInstr<T, Ctx extends Context> = T extends {type: 'SubR'}
-  ? T extends {
-      Rd: infer Rd extends Register;
-      Rn: infer Rn extends Register;
-      Rm: infer Rm extends Register;
-    }
-    ? {
-        memory: Ctx['memory'];
-        registers: Overwrite<
-          Overwrite<
-            Ctx['registers'],
-            Record<
-              Rd,
-              EvalSub<Ctx['registers'][Rn], Ctx['registers'][Rm]>['result']
-            >
-          >,
-          {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
-        >;
-      }
-    : never
-  : never;
-
-type EvalMovIInstr<T, Ctx extends Context> = T extends {type: 'MovI'}
-  ? T extends {Rd: infer Rd extends Register; imm: infer imm extends Immediate}
-    ? {
-        memory: Ctx['memory'];
-        registers: Overwrite<
-          Overwrite<
-            Ctx['registers'],
-            {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
-          >,
-          Record<Rd, imm>
-        >;
-      }
-    : never
-  : never;
-
-type EvalMovRInstr<T, Ctx extends Context> = T extends {type: 'MovR'}
-  ? T extends {Rd: infer Rd extends Register; Rm: infer Rm extends Register}
-    ? {
-        memory: Ctx['memory'];
-        registers: Overwrite<
-          Overwrite<
-            Ctx['registers'],
-            {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
-          >,
-          Record<Rd, Ctx['registers'][Rm]>
-        >;
-      }
-    : never
-  : never;
-
-type EvalBranchInstr<T, Ctx extends Context> = T extends {type: 'Branch'}
-  ? T extends {address: infer address extends string}
-    ? {
-        memory: Ctx['memory'];
-        registers: Overwrite<Ctx['registers'], {pc: address}>;
-      }
-    : never
-  : never;
-
-type EvalBranchIfZeroInstr<T, Ctx extends Context> = T extends {
-  type: 'BranchIfZero';
-}
-  ? T extends {
-      Rn: infer Rn extends Register;
-      address: infer address extends string;
-    }
-    ? {
-        memory: Ctx['memory'];
-        registers: Overwrite<
+type EvalAddRInstr<T, Ctx extends Context> = T extends AddRInstr<
+  infer Rd,
+  infer Rn,
+  infer Rm
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
           Ctx['registers'],
-          {
-            pc: Ctx['registers'][Rn] extends '00000000'
+          Record<
+            Rd,
+            EvalAdd<Ctx['registers'][Rn], Ctx['registers'][Rm]>['result']
+          >
+        >,
+        {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+      >;
+    }
+  : never;
+
+type EvalAddIInstr<T, Ctx extends Context> = T extends AddIInstr<
+  infer Rd,
+  infer Rn,
+  infer imm
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
+          Ctx['registers'],
+          Record<Rd, EvalAdd<Ctx['registers'][Rn], imm>['result']>
+        >,
+        {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+      >;
+    }
+  : never;
+
+type EvalSubIInstr<T, Ctx extends Context> = T extends SubIInstr<
+  infer Rd,
+  infer Rn,
+  infer imm
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
+          Ctx['registers'],
+          Record<Rd, EvalSub<Ctx['registers'][Rn], imm>['result']>
+        >,
+        {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+      >;
+    }
+  : never;
+
+type EvalSubRInstr<T, Ctx extends Context> = T extends SubRInstr<
+  infer Rd,
+  infer Rn,
+  infer Rm
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
+          Ctx['registers'],
+          Record<
+            Rd,
+            EvalSub<Ctx['registers'][Rn], Ctx['registers'][Rm]>['result']
+          >
+        >,
+        {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+      >;
+    }
+  : never;
+
+type EvalMovIInstr<T, Ctx extends Context> = T extends MovIInstr<
+  infer Rd,
+  infer imm
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
+          Ctx['registers'],
+          {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+        >,
+        Record<Rd, imm>
+      >;
+    }
+  : never;
+
+type EvalMovRInstr<T, Ctx extends Context> = T extends MovRInstr<
+  infer Rd,
+  infer Rm
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
+          Ctx['registers'],
+          {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+        >,
+        Record<Rd, Ctx['registers'][Rm]>
+      >;
+    }
+  : never;
+
+type EvalBranchIfInstr<T, Ctx extends Context> = T extends BranchIf<
+  infer type,
+  infer Rn,
+  infer address
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Ctx['registers'],
+        {
+          pc: Ctx['registers'][Rn] extends '00000000'
+            ? type extends 'BranchIfZero'
               ? address
-              : EvalAdd<Ctx['registers']['pc'], '00000001'>['result'];
-          }
-        >;
-      }
-    : never
-  : never;
-
-type EvalBranchIfNotZeroInstr<T, Ctx extends Context> = T extends {
-  type: 'BranchIfNotZero';
-}
-  ? T extends {
-      Rn: infer Rn extends Register;
-      address: infer address extends string;
+              : EvalAdd<Ctx['registers']['pc'], '00000001'>['result']
+            : type extends 'BranchIfZero'
+            ? EvalAdd<Ctx['registers']['pc'], '00000001'>['result']
+            : address;
+        }
+      >;
     }
-    ? {
-        memory: Ctx['memory'];
-        registers: Overwrite<
-          Ctx['registers'],
-          {
-            pc: Ctx['registers'][Rn] extends '00000000'
-              ? EvalAdd<Ctx['registers']['pc'], '00000001'>['result']
-              : address;
-          }
-        >;
-      }
-    : never
   : never;
 
-type EvalBranchLinkInstr<T, Ctx extends Context> = T extends {
-  type: 'BranchLink';
-}
-  ? T extends {
-      address: infer address extends string;
+type EvalBranchLinkInstr<T, Ctx extends Context> = T extends BranchLinkInstr<
+  infer address
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Ctx['registers'],
+        {
+          pc: address;
+          lr: EvalAdd<Ctx['registers']['pc'], '00000001'>['result'];
+        }
+      >;
     }
-    ? {
-        memory: Ctx['memory'];
-        registers: Overwrite<
-          Ctx['registers'],
-          {
-            pc: address;
-            lr: EvalAdd<Ctx['registers']['pc'], '00000001'>['result'];
-          }
-        >;
-      }
-    : never
   : never;
 
-// type EvalBranchRInstr<T, Ctx extends Context> = T extends {
-//   type: 'BranchR';
-// }
-//   ? T extends {
-//       Rd: infer Rd extends Register;
-//     }
-//     ? {
-//         memory: Ctx['memory'];
-//         registers: Overwrite<
-//           Ctx['registers'],
-//           {
-//             pc: Ctx['registers'][Rd];
-//           }
-//         >;
-//       }
-//     : never
-//   : never;
-
-type EvalLabelInstr<T, Ctx extends Context> = T extends {type: 'Label'}
+type EvalLabelInstr<T, Ctx extends Context> = T extends LabelInstr<string>
   ? {
       memory: Ctx['memory'];
       registers: Overwrite<
@@ -268,11 +223,10 @@ type EvalInstr<T, Ctx extends Context> =
   | EvalMovIInstr<T, Ctx>
   | EvalMovRInstr<T, Ctx>
   | EvalLabelInstr<T, Ctx>
-  | EvalBranchIfZeroInstr<T, Ctx>
+  | EvalBranchIfInstr<T, Ctx>
   | EvalSubIInstr<T, Ctx>
   | EvalSubRInstr<T, Ctx>
-  | EvalBranchLinkInstr<T, Ctx>
-  | EvalBranchIfNotZeroInstr<T, Ctx>;
+  | EvalBranchLinkInstr<T, Ctx>;
 
 type Context = {
   registers: {
@@ -327,12 +281,59 @@ type Eval<
   ? Ctx
   : Eval<Instrs, EvalInstr<CleanFind<Instrs, Ctx['registers']['pc']>, Ctx>>;
 
+// type Program = Eval<
+//   ResolveLabels<
+//     ParseProgram<`
+//       MOV r0, #00000110
+//       MOV r1, #11000110
+//       mul:
+//         CBZ r1, exit
+//         ADD r2, r2, r0
+//         SUB r1, r1, #00000001
+//         B mul
+//       exit:
+//     `>
+//   >
+// >;
+
+// type Program = Eval<
+//   ResolveLabels<
+//     ParseProgram<`
+//       ADD r0, r0, #00000011
+//       ADD r1, r0, r0
+//       SUB r1, r1, #00000010
+//       SUB r1, r1, r0
+//       MOV r2, #00000010
+//       MOV r2, r1
+//     `>
+//   >
+// >;
+
+// type Program = Eval<
+//   ResolveLabels<
+//     ParseProgram<`
+//       MOV r0, #00000010
+//       MOV r1, #00000001
+//       BL add
+//       B exit
+//       add:
+//         ADD r0, r0, r1
+//         BR lr
+//       exit:
+//     `>
+//   >
+// >;
+
 type Program = Eval<
   ResolveLabels<
     ParseProgram<`
-      MOV r0, #00000000
-      CBNZ r0, exit
-      MOV r1, #00000001
+      MOV r0, #00000110
+      MOV r1, #11000110
+      mul:
+        CBZ r1, exit
+        ADD r2, r2, r0
+        SUB r1, r1, #00000001
+        B mul
       exit:
     `>
   >
