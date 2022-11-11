@@ -101,11 +101,15 @@ export type _BranchIf<
   label: label;
 };
 
-export type BranchIf<type extends 'BranchIfZero' | 'BranchIfNotZero', Rn extends Register, address extends string> = {
+export type BranchIf<
+  type extends 'BranchIfZero' | 'BranchIfNotZero',
+  Rn extends Register,
+  address extends string,
+> = {
   type: type;
   Rn: Rn;
   address: address;
-}
+};
 
 export type _BranchLinkInstr<label extends string> = {
   type: '_BranchLink';
@@ -114,46 +118,105 @@ export type _BranchLinkInstr<label extends string> = {
 
 export type BranchLinkInstr<address extends string> = {
   type: 'BranchLink';
-  address: address
+  address: address;
 };
 
 export type PushInstr<Rm extends Register> = {
   type: 'Push';
   Rm: Rm;
-}
+};
 
 export type PopInstr<Rm extends Register> = {
   type: 'Pop';
   Rm: Rm;
-}
+};
 
-export type StrIInstr<Rt extends Register, Rn extends Register, imm extends Immediate> = {
+export type StrIInstr<
+  Rt extends Register,
+  Rn extends Register,
+  imm extends Immediate,
+> = {
   type: 'StrI';
   Rt: Rt;
   Rn: Rn;
   imm: imm;
-}
+};
 
-export type StrRInstr<Rt extends Register, Rn extends Register, Rm extends Register> = {
+export type StrRInstr<
+  Rt extends Register,
+  Rn extends Register,
+  Rm extends Register,
+> = {
   type: 'StrR';
   Rt: Rt;
   Rn: Rn;
   Rm: Rm;
-}
+};
 
-export type LdrIInstr<Rt extends Register, Rn extends Register, imm extends Immediate> = {
+export type LdrIInstr<
+  Rt extends Register,
+  Rn extends Register,
+  imm extends Immediate,
+> = {
   type: 'LdrI';
   Rt: Rt;
   Rn: Rn;
   imm: imm;
-}
+};
 
-export type LdrRInstr<Rt extends Register, Rn extends Register, Rm extends Register> = {
+export type LdrRInstr<
+  Rt extends Register,
+  Rn extends Register,
+  Rm extends Register,
+> = {
   type: 'LdrR';
   Rt: Rt;
   Rn: Rn;
   Rm: Rm;
-}
+};
+
+export type LSLIInstr<
+  Rd extends Register,
+  Rm extends Register,
+  imm extends Immediate,
+> = {
+  type: 'LslI';
+  Rd: Rd;
+  Rm: Rm;
+  imm: imm;
+};
+
+export type LSLRInstr<
+  Rd extends Register,
+  Rm extends Register,
+  Rs extends Register,
+> = {
+  type: 'LslR';
+  Rd: Rd;
+  Rm: Rm;
+  Rs: Rs;
+};
+export type LSRIInstr<
+  Rd extends Register,
+  Rm extends Register,
+  imm extends Immediate,
+> = {
+  type: 'LsrI';
+  Rd: Rd;
+  Rm: Rm;
+  imm: imm;
+};
+
+export type LSRRInstr<
+  Rd extends Register,
+  Rm extends Register,
+  Rs extends Register,
+> = {
+  type: 'LsrR';
+  Rd: Rd;
+  Rm: Rm;
+  Rs: Rs;
+};
 
 export type Indexed<T, idx extends string> = T & {idx: idx};
 

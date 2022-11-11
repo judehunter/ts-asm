@@ -22,6 +22,10 @@ import {
   StrRInstr,
   LdrIInstr,
   LdrRInstr,
+  LSLIInstr,
+  LSLRInstr,
+  LSRRInstr,
+  LSRIInstr,
 } from './ast';
 import {EvalAdd} from './eval';
 import {Signature} from './utils';
@@ -126,6 +130,26 @@ type ParseLdrInstr<T> =
       : never
     : never;
 
+type ParseLSLIInstr<T> =
+  T extends `LSL ${infer Rd extends Register}, ${infer Rm extends Register}, #${infer imm extends Immediate}`
+    ? LSLIInstr<Rd, Rm, imm>
+    : never;
+
+type ParseLSLRInstr<T> =
+  T extends `LSL ${infer Rd extends Register}, ${infer Rm extends Register}, ${infer Rs extends Register}`
+    ? LSLRInstr<Rd, Rm, Rs>
+    : never;
+
+type ParseLSRIInstr<T> =
+  T extends `LSR ${infer Rd extends Register}, ${infer Rm extends Register}, #${infer imm extends Immediate}`
+    ? LSRIInstr<Rd, Rm, imm>
+    : never;
+
+type ParseLSRRInstr<T> =
+  T extends `LSR ${infer Rd extends Register}, ${infer Rm extends Register}, ${infer Rs extends Register}`
+    ? LSRRInstr<Rd, Rm, Rs>
+    : never;
+
 type ParseInstr<T> =
   | ParseAddIInstr<T>
   | ParseAddRInstr<T>
@@ -142,7 +166,11 @@ type ParseInstr<T> =
   | ParsePush<T>
   | ParsePop<T>
   | ParseStrInstr<T>
-  | ParseLdrInstr<T>;
+  | ParseLdrInstr<T>
+  | ParseLSLIInstr<T>
+  | ParseLSLRInstr<T>
+  | ParseLSRIInstr<T>
+  | ParseLSRRInstr<T>;
 
 type ParseLine<T> = ParseInstr<TrimSpace<T>>;
 
@@ -201,6 +229,6 @@ export type ResolveLabels<Instrs> = {
 
 type Test = Signature<
   ParseProgram<`
-    MOV r0, #00000110
+    LSR r0, r1, r2
   `>
 >;

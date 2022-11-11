@@ -10,6 +10,10 @@ import {
   LabelInstr,
   LdrIInstr,
   LdrRInstr,
+  LSLIInstr,
+  LSLRInstr,
+  LSRIInstr,
+  LSRRInstr,
   MovIInstr,
   MovRInstr,
   PopInstr,
@@ -346,6 +350,90 @@ type EvalLdrRInstr<T, Ctx extends Context> = T extends LdrRInstr<
     }
   : never;
 
+type SingleLSL<T> = T extends `${infer First}${infer Rest}`
+  ? `${Rest}0`
+  : never;
+type SingleLSRLoop<T> = T extends `${infer First}${infer Rest}`
+  ? Rest extends ''
+    ? ''
+    : `${First}${SingleLSRLoop<Rest>}`
+  : never;
+type SingleLSR<T> = `0${SingleLSRLoop<T>}`;
+type EvalLSL<T, amount extends string> = amount extends '00000000'
+  ? T
+  : EvalLSL<SingleLSL<T>, EvalSub<amount, '00000001'>['result']>;
+type EvalLSR<T, amount extends string> = amount extends '00000000'
+  ? T
+  : EvalLSR<SingleLSR<T>, EvalSub<amount, '00000001'>['result']>;
+
+type EvalLSLIInstr<T, Ctx extends Context> = T extends LSLIInstr<
+  infer Rd,
+  infer Rm,
+  infer imm
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
+          Ctx['registers'],
+          Record<Rd, EvalLSL<Ctx['registers'][Rm], imm>>
+        >,
+        {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+      >;
+    }
+  : never;
+
+type EvalLSLRInstr<T, Ctx extends Context> = T extends LSLRInstr<
+  infer Rd,
+  infer Rm,
+  infer Rs
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
+          Ctx['registers'],
+          Record<Rd, EvalLSL<Ctx['registers'][Rm], Ctx['registers'][Rs]>>
+        >,
+        {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+      >;
+    }
+  : never;
+
+type EvalLSRIInstr<T, Ctx extends Context> = T extends LSRIInstr<
+  infer Rd,
+  infer Rm,
+  infer imm
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
+          Ctx['registers'],
+          Record<Rd, EvalLSR<Ctx['registers'][Rm], imm>>
+        >,
+        {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+      >;
+    }
+  : never;
+
+type EvalLSRRInstr<T, Ctx extends Context> = T extends LSRRInstr<
+  infer Rd,
+  infer Rm,
+  infer Rs
+>
+  ? {
+      memory: Ctx['memory'];
+      registers: Overwrite<
+        Overwrite<
+          Ctx['registers'],
+          Record<Rd, EvalLSR<Ctx['registers'][Rm], Ctx['registers'][Rs]>>
+        >,
+        {pc: EvalAdd<Ctx['registers']['pc'], '00000001'>['result']}
+      >;
+    }
+  : never;
+
 type EvalInstr<T, Ctx extends Context> =
   | EvalAddIInstr<T, Ctx>
   | EvalAddRInstr<T, Ctx>
@@ -361,7 +449,11 @@ type EvalInstr<T, Ctx extends Context> =
   | EvalStrIInstr<T, Ctx>
   | EvalStrRInstr<T, Ctx>
   | EvalLdrIInstr<T, Ctx>
-  | EvalLdrRInstr<T, Ctx>;
+  | EvalLdrRInstr<T, Ctx>
+  | EvalLSLIInstr<T, Ctx>
+  | EvalLSLRInstr<T, Ctx>
+  | EvalLSRIInstr<T, Ctx>
+  | EvalLSRRInstr<T, Ctx>;
 
 type Context = {
   registers: {
@@ -477,12 +569,9 @@ type Eval<
 type Program = Eval<
   ResolveLabels<
     ParseProgram<`
-      MOV r0, #00000001
-      MOV r3, #00001111
-      STR r0, [r3]
-      STR r0, [r3, r0]
-      LDR r1, [r3]
-      LDR r2, [r3, r0]
+      MOV r0, #00001100
+      MOV r1, #00000011
+      LSR r0, r0, r1
     `>
   >
 >;
@@ -495,6 +584,41 @@ type r2 = Program['registers']['r2'];
 //   ^?
 type mem = Signature<Program['memory']>;
 //   ^?
+
+type And<A, B> = [A, B] extends ['1', '1'] ? '1' : '0';
+
+type EvalAnd<A, B> = [A, B] extends [
+  `${infer AFirst}${infer ARest}`,
+  `${infer BFirst}${infer BRest}`,
+]
+  ? [ARest, BRest] extends ['', '']
+    ? And<AFirst, BFirst>
+    : `${And<AFirst, BFirst>}${EvalAnd<ARest, BRest>}`
+  : '';
+
+type Or<A, B> = [A, B] extends ['0', '0'] ? '0' : '1';
+
+type EvalOr<A, B> = [A, B] extends [
+  `${infer AFirst}${infer ARest}`,
+  `${infer BFirst}${infer BRest}`,
+]
+  ? [ARest, BRest] extends ['', '']
+    ? Or<AFirst, BFirst>
+    : `${Or<AFirst, BFirst>}${EvalOr<ARest, BRest>}`
+  : '';
+
+type XOr<A, B> = [A, B] extends ['0', '1'] | ['1', '0'] ? '1' : '0';
+
+type EvalXOr<A, B> = [A, B] extends [
+  `${infer AFirst}${infer ARest}`,
+  `${infer BFirst}${infer BRest}`,
+]
+  ? [ARest, BRest] extends ['', '']
+    ? XOr<AFirst, BFirst>
+    : `${XOr<AFirst, BFirst>}${EvalXOr<ARest, BRest>}`
+  : '';
+
+type aaa = EvalXOr<'110', '011'>;
 
 // type Test = Signature<Eval<
 //   [
