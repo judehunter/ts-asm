@@ -1,2 +1,3 @@
-# ts-insom
-A programming language implemented entirely in TypeScript's type system
+# ts-asm
+
+Read the story: https://judehunter.dev/blog/assembly-interpreter-in-typescripts-type-system

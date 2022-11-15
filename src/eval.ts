@@ -434,6 +434,41 @@ type EvalLSRRInstr<T, Ctx extends Context> = T extends LSRRInstr<
     }
   : never;
 
+type And<A, B> = [A, B] extends ['1', '1'] ? '1' : '0';
+
+type EvalAnd<A, B> = [A, B] extends [
+  `${infer AFirst}${infer ARest}`,
+  `${infer BFirst}${infer BRest}`,
+]
+  ? [ARest, BRest] extends ['', '']
+    ? And<AFirst, BFirst>
+    : `${And<AFirst, BFirst>}${EvalAnd<ARest, BRest>}`
+  : '';
+
+type Or<A, B> = [A, B] extends ['0', '0'] ? '0' : '1';
+
+type EvalOr<A, B> = [A, B] extends [
+  `${infer AFirst}${infer ARest}`,
+  `${infer BFirst}${infer BRest}`,
+]
+  ? [ARest, BRest] extends ['', '']
+    ? Or<AFirst, BFirst>
+    : `${Or<AFirst, BFirst>}${EvalOr<ARest, BRest>}`
+  : '';
+
+type XOr<A, B> = [A, B] extends ['0', '1'] | ['1', '0'] ? '1' : '0';
+
+type EvalXOr<A, B> = [A, B] extends [
+  `${infer AFirst}${infer ARest}`,
+  `${infer BFirst}${infer BRest}`,
+]
+  ? [ARest, BRest] extends ['', '']
+    ? XOr<AFirst, BFirst>
+    : `${XOr<AFirst, BFirst>}${EvalXOr<ARest, BRest>}`
+  : '';
+
+type EvalNot<A> = EvalXOr<A, '11111111'>;
+
 type EvalInstr<T, Ctx extends Context> =
   | EvalAddIInstr<T, Ctx>
   | EvalAddRInstr<T, Ctx>
@@ -455,7 +490,7 @@ type EvalInstr<T, Ctx extends Context> =
   | EvalLSRIInstr<T, Ctx>
   | EvalLSRRInstr<T, Ctx>;
 
-type Context = {
+export type Context = {
   registers: {
     r0: string;
     r1: string;
@@ -486,27 +521,15 @@ type CleanFind<Instrs, PC> = Clean<Find<Instrs, PC>>;
 
 // type t = Clean<Find<[{idx: '0'}, {idx: '1'}], '1'>>;
 
-type Eval<
-  Instrs extends {idx: any}[],
-  Ctx extends Context = {
-    registers: {
-      r0: '00000000';
-      r1: '00000000';
-      r2: '00000000';
-      r3: '00000000';
-      r4: '00000000';
-      r5: '00000000';
-      r6: '00000000';
-      r7: '00000000';
-      sp: '11111111';
-      lr: '00000000';
-      pc: '00000000';
-    };
-    memory: {};
-  },
-> = CleanFind<Instrs, Ctx['registers']['pc']> extends never
+export type EvalProgram<Instrs, Ctx extends Context> = CleanFind<
+  Instrs,
+  Ctx['registers']['pc']
+> extends never
   ? Ctx
-  : Eval<Instrs, EvalInstr<CleanFind<Instrs, Ctx['registers']['pc']>, Ctx>>;
+  : EvalProgram<
+      Instrs,
+      EvalInstr<CleanFind<Instrs, Ctx['registers']['pc']>, Ctx>
+    >;
 
 // type Program = Eval<
 //   ResolveLabels<
@@ -566,59 +589,29 @@ type Eval<
 //   >
 // >;
 
-type Program = Eval<
-  ResolveLabels<
-    ParseProgram<`
-      MOV r0, #00001100
-      MOV r1, #00000011
-      LSR r0, r0, r1
-    `>
-  >
->;
+// type Program = EvalProgram<
+//   ResolveLabels<
+//     ParseProgram<`
+//     MOV r0, #00000011
+//     MOV r1, #00000100
+//     loop:
+//       CBZ r1, exit
+//       ADD r0, r0, r0
+//       SUB r1, r1, #00000001
+//       B loop
+//     exit:
+//     `>
+//   >
+// >;
 
-type r0 = Program['registers']['r0'];
-//   ^?
-type r1 = Program['registers']['r1'];
-//   ^?
-type r2 = Program['registers']['r2'];
-//   ^?
-type mem = Signature<Program['memory']>;
-//   ^?
-
-type And<A, B> = [A, B] extends ['1', '1'] ? '1' : '0';
-
-type EvalAnd<A, B> = [A, B] extends [
-  `${infer AFirst}${infer ARest}`,
-  `${infer BFirst}${infer BRest}`,
-]
-  ? [ARest, BRest] extends ['', '']
-    ? And<AFirst, BFirst>
-    : `${And<AFirst, BFirst>}${EvalAnd<ARest, BRest>}`
-  : '';
-
-type Or<A, B> = [A, B] extends ['0', '0'] ? '0' : '1';
-
-type EvalOr<A, B> = [A, B] extends [
-  `${infer AFirst}${infer ARest}`,
-  `${infer BFirst}${infer BRest}`,
-]
-  ? [ARest, BRest] extends ['', '']
-    ? Or<AFirst, BFirst>
-    : `${Or<AFirst, BFirst>}${EvalOr<ARest, BRest>}`
-  : '';
-
-type XOr<A, B> = [A, B] extends ['0', '1'] | ['1', '0'] ? '1' : '0';
-
-type EvalXOr<A, B> = [A, B] extends [
-  `${infer AFirst}${infer ARest}`,
-  `${infer BFirst}${infer BRest}`,
-]
-  ? [ARest, BRest] extends ['', '']
-    ? XOr<AFirst, BFirst>
-    : `${XOr<AFirst, BFirst>}${EvalXOr<ARest, BRest>}`
-  : '';
-
-type aaa = EvalXOr<'110', '011'>;
+// type r0 = Program['registers']['r0'];
+// //   ^?
+// type r1 = Program['registers']['r1'];
+// //   ^?
+// type r2 = Program['registers']['r2'];
+// //   ^?
+// type mem = Signature<Program['memory']>;
+// //   ^?
 
 // type Test = Signature<Eval<
 //   [
